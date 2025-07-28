@@ -565,6 +565,90 @@ func (s *Server) EmbeddingsHandler(c *gin.Context) {
 	c.JSON(http.StatusOK, resp)
 }
 
+func (s *Server) TokenizeHandler(c *gin.Context) {
+	checkpointStart := time.Now()
+	var req api.TokenizeRequest
+	err := c.ShouldBindJSON(&req)
+	switch {
+	case errors.Is(err, io.EOF):
+		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "missing request body"})
+		return
+	case err != nil:
+		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	name := model.ParseName(req.Model)
+	if !name.IsValid() {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "model is required"})
+		return
+	}
+
+	r, _, _, err := s.scheduleRunner(c.Request.Context(), name.String(), []model.Capability{}, req.Options, req.KeepAlive)
+	if err != nil {
+		handleScheduleError(c, req.Model, err)
+		return
+	}
+
+	checkpointLoaded := time.Now()
+
+	tokens, err := r.Tokenize(c.Request.Context(), req.Content)
+	if err != nil {
+		c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": strings.TrimSpace(err.Error())})
+		return
+	}
+
+	resp := api.TokenizeResponse{
+		Model:           req.Model,
+		Tokens:          tokens,
+		TotalDuration:   time.Since(checkpointStart),
+		LoadDuration:    checkpointLoaded.Sub(checkpointStart),
+	}
+	c.JSON(http.StatusOK, resp)
+}
+
+func (s *Server) DetokenizeHandler(c *gin.Context) {
+	checkpointStart := time.Now()
+	var req api.DetokenizeRequest
+	err := c.ShouldBindJSON(&req)
+	switch {
+	case errors.Is(err, io.EOF):
+		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "missing request body"})
+		return
+	case err != nil:
+		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	name := model.ParseName(req.Model)
+	if !name.IsValid() {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "model is required"})
+		return
+	}
+
+	r, _, _, err := s.scheduleRunner(c.Request.Context(), name.String(), []model.Capability{}, req.Options, req.KeepAlive)
+	if err != nil {
+		handleScheduleError(c, req.Model, err)
+		return
+	}
+
+	checkpointLoaded := time.Now()
+
+	content, err := r.Detokenize(c.Request.Context(), req.Tokens)
+	if err != nil {
+		c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": strings.TrimSpace(err.Error())})
+		return
+	}
+
+	resp := api.DetokenizeResponse{
+		Model:           req.Model,
+		Content:         content,
+		TotalDuration:   time.Since(checkpointStart),
+		LoadDuration:    checkpointLoaded.Sub(checkpointStart),
+	}
+	c.JSON(http.StatusOK, resp)
+}
+
 func (s *Server) PullHandler(c *gin.Context) {
 	var req api.PullRequest
 	err := c.ShouldBindJSON(&req)
@@ -1210,6 +1294,8 @@ func (s *Server) GenerateRoutes(rc *ollama.Registry) (http.Handler, error) {
 	r.POST("/api/chat", s.ChatHandler)
 	r.POST("/api/embed", s.EmbedHandler)
 	r.POST("/api/embeddings", s.EmbeddingsHandler)
+	r.POST("/api/tokenize", s.TokenizeHandler)
+	r.POST("/api/detokenize", s.DetokenizeHandler)
 
 	// Inference (OpenAI compatibility)
 	r.POST("/v1/chat/completions", openai.ChatMiddleware(), s.ChatHandler)

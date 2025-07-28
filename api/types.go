@@ -347,6 +347,68 @@ type EmbeddingResponse struct {
 	Embedding []float64 `json:"embedding"`
 }
 
+// TokenizeRequest describes a request to tokenize text using a specific model.
+type TokenizeRequest struct {
+	// Model is the model name to use for tokenization.
+	Model string `json:"model"`
+
+	// Content is the text to tokenize.
+	Content string `json:"content"`
+
+	// KeepAlive controls how long the model will stay loaded in memory following
+	// this request.
+	KeepAlive *Duration `json:"keep_alive,omitempty"`
+
+	// Options lists model-specific options.
+	Options map[string]any `json:"options"`
+}
+
+// TokenizeResponse describes the response from a tokenization request.
+type TokenizeResponse struct {
+	// Model is the model name used for tokenization.
+	Model string `json:"model"`
+
+	// Tokens is the list of token IDs.
+	Tokens []int `json:"tokens"`
+
+	// TotalDuration is the total time taken for the request.
+	TotalDuration time.Duration `json:"total_duration,omitempty"`
+
+	// LoadDuration is the time taken to load the model.
+	LoadDuration time.Duration `json:"load_duration,omitempty"`
+}
+
+// DetokenizeRequest describes a request to detokenize a list of tokens using a specific model.
+type DetokenizeRequest struct {
+	// Model is the model name to use for detokenization.
+	Model string `json:"model"`
+
+	// Tokens is the list of token IDs to detokenize.
+	Tokens []int `json:"tokens"`
+
+	// KeepAlive controls how long the model will stay loaded in memory following
+	// this request.
+	KeepAlive *Duration `json:"keep_alive,omitempty"`
+
+	// Options lists model-specific options.
+	Options map[string]any `json:"options"`
+}
+
+// DetokenizeResponse describes the response from a detokenization request.
+type DetokenizeResponse struct {
+	// Model is the model name used for detokenization.
+	Model string `json:"model"`
+
+	// Content is the detokenized text.
+	Content string `json:"content"`
+
+	// TotalDuration is the total time taken for the request.
+	TotalDuration time.Duration `json:"total_duration,omitempty"`
+
+	// LoadDuration is the time taken to load the model.
+	LoadDuration time.Duration `json:"load_duration,omitempty"`
+}
+
 // CreateRequest is the request passed to [Client.Create].
 type CreateRequest struct {
 	Model    string `json:"model"`

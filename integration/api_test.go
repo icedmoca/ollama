@@ -410,3 +410,69 @@ func TestAPIEmbeddings(t *testing.T) {
 		t.Errorf("zero length embedding response")
 	}
 }
+
+func TestAPITokenize(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Minute)
+	defer cancel()
+	client, _, cleanup := InitServerConnection(ctx, t)
+	defer cleanup()
+
+	// Use a small model for testing
+	modelName := "orca-mini"
+	testText := "Hello, world! This is a test of tokenization."
+
+	if err := PullIfMissing(ctx, client, modelName); err != nil {
+		t.Fatalf("pull failed %s", err)
+	}
+
+	// Test tokenization
+	tokenizeReq := &api.TokenizeRequest{
+		Model:   modelName,
+		Content: testText,
+	}
+
+	tokenizeResp, err := client.Tokenize(ctx, tokenizeReq)
+	if err != nil {
+		t.Fatalf("tokenize call failed: %s", err)
+	}
+
+	if len(tokenizeResp.Tokens) == 0 {
+		t.Errorf("zero length tokenization response")
+	}
+
+	if tokenizeResp.Model != modelName {
+		t.Errorf("expected model %s, got %s", modelName, tokenizeResp.Model)
+	}
+
+	if tokenizeResp.TotalDuration == 0 {
+		t.Errorf("missing total_duration in response")
+	}
+
+	// Test detokenization
+	detokenizeReq := &api.DetokenizeRequest{
+		Model:  modelName,
+		Tokens: tokenizeResp.Tokens,
+	}
+
+	detokenizeResp, err := client.Detokenize(ctx, detokenizeReq)
+	if err != nil {
+		t.Fatalf("detokenize call failed: %s", err)
+	}
+
+	if detokenizeResp.Model != modelName {
+		t.Errorf("expected model %s, got %s", modelName, detokenizeResp.Model)
+	}
+
+	if detokenizeResp.TotalDuration == 0 {
+		t.Errorf("missing total_duration in response")
+	}
+
+	// Verify round-trip tokenization
+	if detokenizeResp.Content != testText {
+		t.Errorf("round-trip tokenization failed: expected %q, got %q", testText, detokenizeResp.Content)
+	}
+
+	t.Logf("Successfully tokenized and detokenized text: %q", testText)
+	t.Logf("Token count: %d", len(tokenizeResp.Tokens))
+	t.Logf("Tokens: %v", tokenizeResp.Tokens)
+}

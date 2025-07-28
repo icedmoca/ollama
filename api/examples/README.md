@@ -13,6 +13,12 @@ go run example_name/main.go
 - [generate/main.go](generate/main.go)
 - [generate-streaming/main.go](generate-streaming/main.go)
 
+## Multimodal - Work with images and text
+- [multimodal/main.go](multimodal/main.go)
+
+## Tokenize - Tokenize and detokenize text
+- [tokenize/main.go](tokenize/main.go)
+
 ## Pull - Pull a model
 - [pull-progress/main.go](pull-progress/main.go)
 

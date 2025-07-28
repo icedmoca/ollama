@@ -404,7 +404,26 @@ func (c *Client) Embed(ctx context.Context, req *EmbedRequest) (*EmbedResponse, 
 // Embeddings generates an embedding from a model.
 func (c *Client) Embeddings(ctx context.Context, req *EmbeddingRequest) (*EmbeddingResponse, error) {
 	var resp EmbeddingResponse
-	if err := c.do(ctx, http.MethodPost, "/api/embeddings", req, &resp); err != nil {
+	err := c.do(ctx, "POST", "/api/embeddings", req, &resp)
+	if err != nil {
+		return nil, err
+	}
+	return &resp, nil
+}
+
+func (c *Client) Tokenize(ctx context.Context, req *TokenizeRequest) (*TokenizeResponse, error) {
+	var resp TokenizeResponse
+	err := c.do(ctx, "POST", "/api/tokenize", req, &resp)
+	if err != nil {
+		return nil, err
+	}
+	return &resp, nil
+}
+
+func (c *Client) Detokenize(ctx context.Context, req *DetokenizeRequest) (*DetokenizeResponse, error) {
+	var resp DetokenizeResponse
+	err := c.do(ctx, "POST", "/api/detokenize", req, &resp)
+	if err != nil {
 		return nil, err
 	}
 	return &resp, nil
