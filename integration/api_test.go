@@ -549,9 +549,85 @@ func TestAPITokenizeOtherModel(t *testing.T) {
 
 			// Verify that keep_alive reduced load time for detokenization
 			if i > 0 && detokenizeResp.LoadDuration > tokenizeResp.LoadDuration {
-				t.Logf("  ✅ Keep-alive working: detokenize load time (%v) < tokenize load time (%v)", 
+				t.Logf("  ✅ Keep-alive working: detokenize load time (%v) < tokenize load time (%v)",
 					detokenizeResp.LoadDuration, tokenizeResp.LoadDuration)
 			}
 		})
 	}
+}
+
+func TestAPITokenizeUnsupportedMediaType(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	client, _, cleanup := InitServerConnection(ctx, t)
+	defer cleanup()
+
+	modelName := "orca-mini:latest"
+	if err := PullIfMissing(ctx, client, modelName); err != nil {
+		t.Fatalf("pull failed %s", err)
+	}
+
+	// Test unsupported media types
+	unsupportedMediaTypes := []string{
+		"image",
+		"audio",
+		"video",
+		"multimodal",
+		"unsupported",
+	}
+
+	for _, mediaType := range unsupportedMediaTypes {
+		t.Run(fmt.Sprintf("media_type_%s", mediaType), func(t *testing.T) {
+			// Test tokenize with unsupported media type
+			tokenizeReq := &api.TokenizeRequest{
+				Model:     modelName,
+				Content:   "test content",
+				MediaType: mediaType,
+			}
+
+			_, err := client.Tokenize(ctx, tokenizeReq)
+			if err == nil {
+				t.Errorf("Expected error for unsupported media_type '%s', got nil", mediaType)
+			} else {
+				expectedError := fmt.Sprintf("media_type '%s' not supported", mediaType)
+				if !strings.Contains(err.Error(), expectedError) {
+					t.Errorf("Expected error containing '%s', got '%s'", expectedError, err.Error())
+				}
+			}
+
+			// Test detokenize with unsupported media type
+			detokenizeReq := &api.DetokenizeRequest{
+				Model:     modelName,
+				Tokens:    []int{1, 2, 3},
+				MediaType: mediaType,
+			}
+
+			_, err = client.Detokenize(ctx, detokenizeReq)
+			if err == nil {
+				t.Errorf("Expected error for unsupported media_type '%s', got nil", mediaType)
+			} else {
+				expectedError := fmt.Sprintf("media_type '%s' not supported", mediaType)
+				if !strings.Contains(err.Error(), expectedError) {
+					t.Errorf("Expected error containing '%s', got '%s'", expectedError, err.Error())
+				}
+			}
+		})
+	}
+
+	// Test that "text" media type still works
+	t.Run("media_type_text", func(t *testing.T) {
+		tokenizeReq := &api.TokenizeRequest{
+			Model:     modelName,
+			Content:   "test content",
+			MediaType: "text",
+		}
+
+		resp, err := client.Tokenize(ctx, tokenizeReq)
+		if err != nil {
+			t.Errorf("Expected no error for 'text' media_type, got %v", err)
+		}
+		if resp.Model != modelName {
+			t.Errorf("Expected model %s, got %s", modelName, resp.Model)
+		}
+	})
 }

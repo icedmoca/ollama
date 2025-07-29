@@ -106,6 +106,104 @@ func (a *llamaTokenizerAdapter) Detokenize(tokens []int) (string, error) {
 	return a.server.Detokenize(a.ctx, tokens)
 }
 
+// MockTokenizerAdapter provides a mock implementation of TokenizerAdapter for testing.
+// It returns deterministic fake token IDs and content without requiring a real model.
+type MockTokenizerAdapter struct {
+	// Mock token ID counter for generating fake tokens
+	tokenCounter int
+	// Mock content mapping for round-trip testing
+	contentMap map[string][]int
+	tokensMap  map[string]string
+}
+
+// NewMockTokenizerAdapter creates a new MockTokenizerAdapter for testing.
+func NewMockTokenizerAdapter() TokenizerAdapter {
+	return &MockTokenizerAdapter{
+		tokenCounter: 1000, // Start with a reasonable token ID
+		contentMap:   make(map[string][]int),
+		tokensMap:    make(map[string]string),
+	}
+}
+
+func (m *MockTokenizerAdapter) Tokenize(text string) ([]int, error) {
+	// Check if we've seen this text before (for round-trip consistency)
+	if tokens, exists := m.contentMap[text]; exists {
+		return tokens, nil
+	}
+
+	// Generate fake tokens based on text length and content
+	tokens := make([]int, 0)
+	
+	// Add BOS token
+	tokens = append(tokens, 1)
+	
+	// Generate tokens based on words (simple space-based splitting)
+	words := strings.Fields(text)
+	for _, word := range words {
+		// Generate a deterministic token ID based on word hash
+		hash := 0
+		for _, char := range word {
+			hash = (hash*31 + int(char)) % 10000
+		}
+		tokenID := 1000 + hash
+		tokens = append(tokens, tokenID)
+	}
+	
+	// Add EOS token if text is not empty
+	if len(text) > 0 {
+		tokens = append(tokens, 2)
+	}
+	
+	// Store for round-trip consistency
+	m.contentMap[text] = tokens
+	tokenKey := fmt.Sprintf("%v", tokens)
+	m.tokensMap[tokenKey] = text
+	
+	return tokens, nil
+}
+
+func (m *MockTokenizerAdapter) Detokenize(tokens []int) (string, error) {
+	// Check if we've seen these tokens before (for round-trip consistency)
+	tokenKey := fmt.Sprintf("%v", tokens)
+	if content, exists := m.tokensMap[tokenKey]; exists {
+		return content, nil
+	}
+	
+	// Generate fake content based on tokens
+	if len(tokens) == 0 {
+		return "", nil
+	}
+	
+	// Skip BOS token if present
+	startIdx := 0
+	if len(tokens) > 0 && tokens[0] == 1 {
+		startIdx = 1
+	}
+	
+	// Skip EOS token if present
+	endIdx := len(tokens)
+	if endIdx > startIdx && tokens[endIdx-1] == 2 {
+		endIdx = endIdx - 1
+	}
+	
+	// Generate fake words based on token IDs
+	words := make([]string, 0)
+	for i := startIdx; i < endIdx; i++ {
+		tokenID := tokens[i]
+		// Generate a fake word based on token ID
+		word := fmt.Sprintf("word_%d", tokenID)
+		words = append(words, word)
+	}
+	
+	content := strings.Join(words, " ")
+	
+	// Store for round-trip consistency
+	m.tokensMap[tokenKey] = content
+	m.contentMap[content] = tokens
+	
+	return content, nil
+}
+
 // llmServer is an instance of the llama.cpp server
 type llmServer struct {
 	port        int

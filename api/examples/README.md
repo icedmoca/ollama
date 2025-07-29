@@ -18,7 +18,7 @@ go run example_name/main.go
 
 ## Tokenize - Tokenize and detokenize text
 - [tokenize/main.go](tokenize/main.go) - Basic tokenization example with keep_alive
-- [tokenize/bench.go](tokenize/bench.go) - Performance benchmark tool
+- [tokenize/bench.go](tokenize/bench.go) - Performance benchmark tool with near-context-limit testing
 
 ## Pull - Pull a model
 - [pull-progress/main.go](pull-progress/main.go)

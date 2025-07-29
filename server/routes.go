@@ -583,6 +583,12 @@ func (s *Server) TokenizeHandler(c *gin.Context) {
 		req.MediaType = "text"
 	}
 
+	// Validate media_type - currently only "text" is supported
+	if req.MediaType != "text" {
+		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("media_type '%s' not supported", req.MediaType)})
+		return
+	}
+
 	name := model.ParseName(req.Model)
 	if !name.IsValid() {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "model is required"})
@@ -628,6 +634,12 @@ func (s *Server) DetokenizeHandler(c *gin.Context) {
 	// Set default media_type to "text" if not specified
 	if req.MediaType == "" {
 		req.MediaType = "text"
+	}
+
+	// Validate media_type - currently only "text" is supported
+	if req.MediaType != "text" {
+		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("media_type '%s' not supported", req.MediaType)})
+		return
 	}
 
 	name := model.ParseName(req.Model)

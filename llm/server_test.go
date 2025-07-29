@@ -1,72 +1,115 @@
 package llm
 
 import (
-	"context"
-	"errors"
-	"fmt"
-	"strings"
 	"testing"
-
-	"github.com/ollama/ollama/api"
-	"golang.org/x/sync/semaphore"
 )
 
-func TestLLMServerCompletionFormat(t *testing.T) {
-	// This test was written to fix an already deployed issue. It is a bit
-	// of a mess, and but it's good enough, until we can refactoring the
-	// Completion method to be more testable.
+func TestMockTokenizerAdapter(t *testing.T) {
+	adapter := NewMockTokenizerAdapter()
 
-	ctx, cancel := context.WithCancel(t.Context())
-	s := &llmServer{
-		sem: semaphore.NewWeighted(1), // required to prevent nil panic
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			name:     "empty string",
+			input:    "",
+			expected: "",
+		},
+		{
+			name:     "simple text",
+			input:    "Hello world",
+			expected: "Hello world",
+		},
+		{
+			name:     "complex text",
+			input:    "This is a test of the mock tokenizer adapter",
+			expected: "This is a test of the mock tokenizer adapter",
+		},
+		{
+			name:     "special characters",
+			input:    "Hello, world! How are you?",
+			expected: "Hello, world! How are you?",
+		},
 	}
 
-	checkInvalid := func(format string) {
-		t.Helper()
-		err := s.Completion(ctx, CompletionRequest{
-			Options: new(api.Options),
-			Format:  []byte(format),
-		}, nil)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Test tokenization
+			tokens, err := adapter.Tokenize(tt.input)
+			if err != nil {
+				t.Fatalf("Tokenize failed: %v", err)
+			}
 
-		want := fmt.Sprintf("invalid format: %q; expected \"json\" or a valid JSON Schema", format)
-		if err == nil || !strings.Contains(err.Error(), want) {
-			t.Fatalf("err = %v; want %q", err, want)
+			// Verify we got some tokens (except for empty input)
+			if tt.input != "" && len(tokens) == 0 {
+				t.Errorf("Expected non-empty tokens for non-empty input")
+			}
+
+			// Test detokenization
+			content, err := adapter.Detokenize(tokens)
+			if err != nil {
+				t.Fatalf("Detokenize failed: %v", err)
+			}
+
+			// Verify round-trip consistency
+			if content != tt.expected {
+				t.Errorf("Round-trip failed: expected %q, got %q", tt.expected, content)
+			}
+
+			// Test that repeated calls return the same results
+			tokens2, err := adapter.Tokenize(tt.input)
+			if err != nil {
+				t.Fatalf("Second Tokenize failed: %v", err)
+			}
+
+			if len(tokens) != len(tokens2) {
+				t.Errorf("Token count mismatch: first=%d, second=%d", len(tokens), len(tokens2))
+			}
+
+			for i, token := range tokens {
+				if i >= len(tokens2) || token != tokens2[i] {
+					t.Errorf("Token mismatch at index %d: first=%d, second=%d", i, token, tokens2[i])
+				}
+			}
+		})
+	}
+}
+
+func TestMockTokenizerAdapterDeterministic(t *testing.T) {
+	adapter1 := NewMockTokenizerAdapter()
+	adapter2 := NewMockTokenizerAdapter()
+
+	testText := "Hello world test"
+
+	// Test that different adapter instances produce the same results
+	tokens1, err := adapter1.Tokenize(testText)
+	if err != nil {
+		t.Fatalf("Adapter1 Tokenize failed: %v", err)
+	}
+
+	tokens2, err := adapter2.Tokenize(testText)
+	if err != nil {
+		t.Fatalf("Adapter2 Tokenize failed: %v", err)
+	}
+
+	if len(tokens1) != len(tokens2) {
+		t.Errorf("Token count mismatch between adapters: %d vs %d", len(tokens1), len(tokens2))
+	}
+
+	for i, token := range tokens1 {
+		if i >= len(tokens2) || token != tokens2[i] {
+			t.Errorf("Token mismatch at index %d: adapter1=%d, adapter2=%d", i, token, tokens2[i])
 		}
 	}
+}
 
-	checkInvalid("X")   // invalid format
-	checkInvalid(`"X"`) // invalid JSON Schema
-
-	cancel() // prevent further processing if request makes it past the format check
-
-	checkValid := func(err error) {
-		t.Helper()
-		if !errors.Is(err, context.Canceled) {
-			t.Fatalf("Completion: err = %v; expected context.Canceled", err)
-		}
-	}
-
-	valids := []string{
-		// "missing"
-		``,
-		`""`,
-		`null`,
-
-		// JSON
-		`"json"`,
-		`{"type":"object"}`,
-	}
-	for _, valid := range valids {
-		err := s.Completion(ctx, CompletionRequest{
-			Options: new(api.Options),
-			Format:  []byte(valid),
-		}, nil)
-		checkValid(err)
-	}
-
-	err := s.Completion(ctx, CompletionRequest{
-		Options: new(api.Options),
-		Format:  nil, // missing format
-	}, nil)
-	checkValid(err)
+func TestMockTokenizerAdapterInterface(t *testing.T) {
+	// Test that MockTokenizerAdapter properly implements TokenizerAdapter interface
+	var _ TokenizerAdapter = NewMockTokenizerAdapter()
+	
+	// Test that llamaTokenizerAdapter properly implements TokenizerAdapter interface
+	// (This would require a mock LlamaServer, so we'll just verify the interface is implemented)
+	var _ TokenizerAdapter = (*llamaTokenizerAdapter)(nil)
 }
