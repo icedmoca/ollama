@@ -578,6 +578,11 @@ func (s *Server) TokenizeHandler(c *gin.Context) {
 		return
 	}
 
+	// Set default media_type to "text" if not specified
+	if req.MediaType == "" {
+		req.MediaType = "text"
+	}
+
 	name := model.ParseName(req.Model)
 	if !name.IsValid() {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "model is required"})
@@ -618,6 +623,11 @@ func (s *Server) DetokenizeHandler(c *gin.Context) {
 	case err != nil:
 		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
+	}
+
+	// Set default media_type to "text" if not specified
+	if req.MediaType == "" {
+		req.MediaType = "text"
 	}
 
 	name := model.ParseName(req.Model)

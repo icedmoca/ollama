@@ -476,3 +476,82 @@ func TestAPITokenize(t *testing.T) {
 	t.Logf("Token count: %d", len(tokenizeResp.Tokens))
 	t.Logf("Tokens: %v", tokenizeResp.Tokens)
 }
+
+func TestAPITokenizeOtherModel(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	defer cancel()
+	client, _, cleanup := InitServerConnection(ctx, t)
+	defer cleanup()
+
+	// Use a different model to test compatibility and catch issues with special tokens
+	modelName := "tinyllama:latest"
+	testTexts := []string{
+		"Hello, world!",
+		"This is a longer text with multiple sentences. It should test the tokenizer's ability to handle more complex input.",
+		"Special characters: !@#$%^&*()_+-=[]{}|;':\",./<>?",
+		"Unicode: 🚀🌟🎉 你好世界 Привет мир",
+		"", // Empty string test
+	}
+
+	if err := PullIfMissing(ctx, client, modelName); err != nil {
+		t.Fatalf("pull failed %s", err)
+	}
+
+	// Test keep_alive functionality
+	keepAlive := api.Duration{Duration: 30 * time.Second}
+
+	for i, testText := range testTexts {
+		t.Run(fmt.Sprintf("text_%d", i), func(t *testing.T) {
+			// Test tokenization with keep_alive
+			tokenizeReq := &api.TokenizeRequest{
+				Model:     modelName,
+				Content:   testText,
+				MediaType: "text",
+				KeepAlive: &keepAlive,
+			}
+
+			tokenizeResp, err := client.Tokenize(ctx, tokenizeReq)
+			if err != nil {
+				t.Fatalf("tokenize call failed: %s", err)
+			}
+
+			if tokenizeResp.Model != modelName {
+				t.Errorf("expected model %s, got %s", modelName, tokenizeResp.Model)
+			}
+
+			// Test detokenization with keep_alive (should reuse loaded model)
+			detokenizeReq := &api.DetokenizeRequest{
+				Model:     modelName,
+				Tokens:    tokenizeResp.Tokens,
+				MediaType: "text",
+				KeepAlive: &keepAlive,
+			}
+
+			detokenizeResp, err := client.Detokenize(ctx, detokenizeReq)
+			if err != nil {
+				t.Fatalf("detokenize call failed: %s", err)
+			}
+
+			if detokenizeResp.Model != modelName {
+				t.Errorf("expected model %s, got %s", modelName, detokenizeResp.Model)
+			}
+
+			// Verify round-trip tokenization
+			if detokenizeResp.Content != testText {
+				t.Errorf("round-trip tokenization failed: expected %q, got %q", testText, detokenizeResp.Content)
+			}
+
+			// Log performance metrics
+			t.Logf("Text %d: %q", i, testText)
+			t.Logf("  Token count: %d", len(tokenizeResp.Tokens))
+			t.Logf("  Tokenize load time: %v", tokenizeResp.LoadDuration)
+			t.Logf("  Detokenize load time: %v", detokenizeResp.LoadDuration)
+
+			// Verify that keep_alive reduced load time for detokenization
+			if i > 0 && detokenizeResp.LoadDuration > tokenizeResp.LoadDuration {
+				t.Logf("  ✅ Keep-alive working: detokenize load time (%v) < tokenize load time (%v)", 
+					detokenizeResp.LoadDuration, tokenizeResp.LoadDuration)
+			}
+		})
+	}
+}

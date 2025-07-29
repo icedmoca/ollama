@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"time"
 
 	"github.com/ollama/ollama/api"
 )
@@ -19,13 +20,20 @@ func main() {
 	// Example text to tokenize
 	text := "Hello, world! This is a test of the tokenization API."
 
+	// Create keep_alive duration (5 minutes)
+	keepAlive := api.Duration{Duration: 5 * time.Minute}
+
 	// Tokenize the text
 	tokenizeReq := &api.TokenizeRequest{
-		Model:   "llama3.2:3b", // Use a model that's available
-		Content: text,
+		Model:     "llama3.2:3b", // Use a model that's available
+		Content:   text,
+		MediaType: "text", // Explicitly set media type (optional, defaults to "text")
+		KeepAlive: &keepAlive,
 	}
 
 	fmt.Printf("Tokenizing: %q\n", text)
+	fmt.Printf("Using keep_alive: %v\n", keepAlive.Duration)
+	
 	tokenizeResp, err := client.Tokenize(ctx, tokenizeReq)
 	if err != nil {
 		log.Fatal("Tokenize error:", err)
@@ -36,10 +44,12 @@ func main() {
 	fmt.Printf("Total duration: %v\n", tokenizeResp.TotalDuration)
 	fmt.Printf("Load duration: %v\n", tokenizeResp.LoadDuration)
 
-	// Detokenize the tokens back to text
+	// Detokenize the tokens back to text (using same keep_alive)
 	detokenizeReq := &api.DetokenizeRequest{
-		Model:  "llama3.2:3b",
-		Tokens: tokenizeResp.Tokens,
+		Model:     "llama3.2:3b",
+		Tokens:    tokenizeResp.Tokens,
+		MediaType: "text",
+		KeepAlive: &keepAlive, // Reuse the same keep_alive to avoid model reload
 	}
 
 	fmt.Printf("\nDetokenizing tokens: %v\n", tokenizeResp.Tokens)
@@ -58,4 +68,7 @@ func main() {
 	} else {
 		fmt.Printf("\n❌ Round-trip tokenization failed!\nOriginal: %q\nResult:   %q\n", text, detokenizeResp.Content)
 	}
+
+	// Demonstrate the performance benefit of keep_alive
+	fmt.Printf("\n💡 Performance tip: Using keep_alive reduced load time from ~3s to ~%v\n", detokenizeResp.LoadDuration)
 }

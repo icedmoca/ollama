@@ -76,6 +76,36 @@ type LlamaServer interface {
 	Pid() int
 }
 
+// TokenizerAdapter provides an abstract interface for tokenization operations.
+// This allows for easy integration with different tokenizer implementations
+// and future engine support.
+type TokenizerAdapter interface {
+	Tokenize(text string) ([]int, error)
+	Detokenize(tokens []int) (string, error)
+}
+
+// llamaTokenizerAdapter wraps a LlamaServer to implement the TokenizerAdapter interface.
+type llamaTokenizerAdapter struct {
+	server LlamaServer
+	ctx    context.Context
+}
+
+// NewTokenizerAdapter creates a new TokenizerAdapter from a LlamaServer.
+func NewTokenizerAdapter(ctx context.Context, server LlamaServer) TokenizerAdapter {
+	return &llamaTokenizerAdapter{
+		server: server,
+		ctx:    ctx,
+	}
+}
+
+func (a *llamaTokenizerAdapter) Tokenize(text string) ([]int, error) {
+	return a.server.Tokenize(a.ctx, text)
+}
+
+func (a *llamaTokenizerAdapter) Detokenize(tokens []int) (string, error) {
+	return a.server.Detokenize(a.ctx, tokens)
+}
+
 // llmServer is an instance of the llama.cpp server
 type llmServer struct {
 	port        int

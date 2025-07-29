@@ -355,6 +355,10 @@ type TokenizeRequest struct {
 	// Content is the text to tokenize.
 	Content string `json:"content"`
 
+	// MediaType specifies the type of content being tokenized (default: "text").
+	// Future-proofs for multimodal tokenization (e.g., image/audio/text).
+	MediaType string `json:"media_type,omitempty"`
+
 	// KeepAlive controls how long the model will stay loaded in memory following
 	// this request.
 	KeepAlive *Duration `json:"keep_alive,omitempty"`
@@ -385,6 +389,10 @@ type DetokenizeRequest struct {
 
 	// Tokens is the list of token IDs to detokenize.
 	Tokens []int `json:"tokens"`
+
+	// MediaType specifies the type of content being detokenized (default: "text").
+	// Future-proofs for multimodal tokenization (e.g., image/audio/text).
+	MediaType string `json:"media_type,omitempty"`
 
 	// KeepAlive controls how long the model will stay loaded in memory following
 	// this request.
